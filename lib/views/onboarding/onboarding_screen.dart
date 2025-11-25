@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speakercleaner/core/theme/app_colors.dart';
 
-import '../../core/app_colors.dart';
 import '../../core/app_constants.dart';
 import '../../viewmodels/onboarding_viewmodel.dart';
 import '../home/home_screen.dart';
@@ -42,9 +42,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       description: 'Generate custom frequencies to test your audio equipment.',
     ),
     // Last screen with premium offer
-    const PremiumOfferContent(
-      imagePath: AppConstants.onboarding5,
-    ),
+    const PremiumOfferContent(imagePath: AppConstants.onboarding5),
   ];
 
   @override
@@ -62,7 +60,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             },
             children: _pages.map((page) {
               return Container(
-                padding: const EdgeInsets.only(bottom: 100), // Make room for navigation
+                padding: const EdgeInsets.only(
+                  bottom: 100,
+                ), // Make room for navigation
                 child: page,
               );
             }).toList(),

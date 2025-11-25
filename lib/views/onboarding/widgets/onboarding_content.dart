@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 
 class OnboardingContent extends StatelessWidget {
   final String imagePath;
@@ -18,13 +18,13 @@ class OnboardingContent extends StatelessWidget {
   Widget build(BuildContext context) {
     // Determine if we're using dark theme or light theme
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
-    final Color titleColor = isDarkMode 
-        ? AppColors.textPrimary 
+
+    final Color titleColor = isDarkMode
+        ? AppColors.textPrimary
         : AppColors.textPrimaryLight;
-        
-    final Color descriptionColor = isDarkMode 
-        ? AppColors.textSecondary 
+
+    final Color descriptionColor = isDarkMode
+        ? AppColors.textSecondary
         : AppColors.textSecondaryLight;
 
     return Column(

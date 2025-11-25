@@ -20,8 +20,7 @@ class AppColors {
   static const Color gradientBlueEnd = Color(0xFF357ABD);
   static const Color containerShadow = Color(0xFF2D5F8D);
   static const Color layerContainer = Color(0xFFE8F4FF);
+  static const Color layerContainerDark = Color(0xFF2C2C2E);
   static const Color powerButtonGreen = Color(0xFF4CAF50);
   static const Color turboOrange = Color(0xFFFF9800);
-
-  // Add more colors as needed based on the reference images
 }

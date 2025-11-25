@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../services/audio_service.dart';
 import '../settings/settings_screen.dart';
 import 'widgets/layered_container.dart';
@@ -38,22 +37,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final audioServiceAsync = ref.watch(audioServiceProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: Container(
-        decoration: const BoxDecoration(color: AppColors.backgroundLight),
+        decoration: BoxDecoration(color: theme.scaffoldBackgroundColor),
         child: SafeArea(
           child: audioServiceAsync.when(
-            loading: () => const Center(
+            loading: () => Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  CircularProgressIndicator(color: AppColors.primaryLight),
-                  SizedBox(height: 16),
+                  CircularProgressIndicator(color: theme.colorScheme.primary),
+                  const SizedBox(height: 16),
                   Text(
                     'Initializing audio...',
-                    style: TextStyle(color: AppColors.textSecondaryLight),
+                    style: theme.textTheme.bodyMedium,
                   ),
                 ],
               ),
@@ -66,7 +66,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   const SizedBox(height: 16),
                   Text(
                     'Error: $e',
-                    style: const TextStyle(color: AppColors.textPrimaryLight),
+                    style: theme.textTheme.bodyLarge,
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -78,7 +78,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               ),
             ),
             data: (audioService) {
-              // ✅ Load devices when service is first available
+              // Load devices when service is first available
               _syncDevicesFromService(audioService);
               return _buildContent(audioService);
             },
@@ -106,23 +106,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildContent(AudioService audioService) {
+    final theme = Theme.of(context);
     return Column(
       children: [
         // Dynamic Output Selector
         Padding(
-          padding: const EdgeInsets.fromLTRB(40, 20, 40, 0),
-          child: Row(
-            children: [
-              Expanded(child: _buildOutputSelector(audioService)),
-              const SizedBox(width: 8),
-
-              // Refresh button
-              _buildRefreshButton(audioService),
-            ],
-          ),
+          padding: const EdgeInsets.fromLTRB(90, 30, 90, 0),
+          child: _buildOutputSelector(audioService),
         ),
 
-        const SizedBox(height: 40),
+        const SizedBox(height: 80),
 
         // Power Control
         LayeredContainer(
@@ -131,45 +124,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
 
         const SizedBox(height: 20),
-
-        // Debug info
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.black12),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🔊 Current: ${_selectedDevice?.name ?? "None"}',
-                  style: const TextStyle(
-                    color: AppColors.textSecondaryLight,
-                    fontSize: 12,
-                  ),
-                ),
-                Text(
-                  '📱 Devices: ${_availableDevices.length} found',
-                  style: const TextStyle(
-                    color: AppColors.textSecondaryLight,
-                    fontSize: 12,
-                  ),
-                ),
-                Text(
-                  '▶️ Playing: $_isPlaying',
-                  style: const TextStyle(
-                    color: AppColors.textSecondaryLight,
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
 
         const Spacer(),
 
@@ -199,6 +153,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // Dynamic Output Selector with real devices
   Widget _buildOutputSelector(AudioService audioService) {
+    final theme = Theme.of(context);
     // Fallback if no devices loaded yet
     if (_availableDevices.isEmpty) {
       return GestureDetector(
@@ -206,11 +161,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.surfaceLight,
+            color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.black12),
+            border: Border.all(color: theme.dividerColor),
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               SizedBox(
@@ -218,17 +173,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 height: 14,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: AppColors.textSecondaryLight,
+                  color: theme.textTheme.bodyMedium?.color,
                 ),
               ),
-              SizedBox(width: 8),
-              Text(
-                "Tap to load devices...",
-                style: TextStyle(
-                  color: AppColors.textSecondaryLight,
-                  fontSize: 12,
-                ),
-              ),
+              const SizedBox(width: 8),
+              Text("Tap to load devices...", style: theme.textTheme.bodySmall),
             ],
           ),
         ),
@@ -236,56 +185,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12),
-      ),
       child: DropdownButton<AudioDevice>(
+        isDense: true,
+        alignment: Alignment.center,
+        iconSize: 30,
+        icon: Icon(Icons.arrow_drop_down, color: theme.iconTheme.color),
         value: _selectedDevice,
         isExpanded: true,
         underline: const SizedBox(),
-        dropdownColor: AppColors.surfaceLight,
-        icon: const Icon(
-          Icons.arrow_drop_down,
-          color: AppColors.textPrimaryLight,
-          size: 18,
-        ),
-        style: const TextStyle(
-          color: AppColors.textPrimaryLight,
-          fontSize: 13,
+        dropdownColor: theme.colorScheme.surface,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          fontSize: 18,
           fontWeight: FontWeight.w500,
         ),
         items: _availableDevices.map((AudioDevice device) {
           return DropdownMenuItem<AudioDevice>(
             value: device,
-            child: Row(
-              children: [
-                Icon(
-                  _getDeviceIcon(device.type),
-                  color: AppColors.textPrimaryLight,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    device.name,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textPrimaryLight,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            child: Text(device.name),
           );
         }).toList(),
 
         onChanged: (AudioDevice? device) async {
           if (device != null && device != _selectedDevice) {
             if (kDebugMode) {
-              print("📱 User selected: ${device.name}");
+              print("User selected: ${device.name}");
             }
 
             setState(() => _selectedDevice = device);
@@ -310,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ],
                   ),
                   duration: const Duration(seconds: 2),
-                  backgroundColor: AppColors.primaryLight,
+                  backgroundColor: theme.colorScheme.primary,
                 ),
               );
             }
@@ -344,25 +267,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }
           }
         },
-      ),
-    );
-  }
-
-  Widget _buildRefreshButton(AudioService audioService) {
-    return GestureDetector(
-      onTap: () => _refreshDevices(audioService),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        decoration: BoxDecoration(
-          color: AppColors.surfaceLight,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.black12, width: 1),
-        ),
-        child: const Icon(
-          Icons.refresh,
-          color: AppColors.textPrimaryLight,
-          size: 20,
-        ),
       ),
     );
   }
@@ -453,6 +357,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     required bool isActive,
     required VoidCallback onTap,
   }) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Column(
@@ -460,12 +365,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isActive ? AppColors.primaryLight : AppColors.surfaceLight,
+              color: isActive
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.surface,
               shape: BoxShape.circle,
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: AppColors.primaryLight.withOpacity(0.4),
+                        color: theme.colorScheme.primary.withOpacity(0.4),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
@@ -480,17 +387,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             child: Icon(
               icon,
-              color: isActive ? Colors.white : AppColors.textSecondaryLight,
+              color: isActive ? Colors.white : theme.iconTheme.color,
               size: 26,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             label,
-            style: TextStyle(
+            style: theme.textTheme.bodySmall?.copyWith(
               color: isActive
-                  ? AppColors.primaryLight
-                  : AppColors.textSecondaryLight,
+                  ? theme.colorScheme.primary
+                  : theme.textTheme.bodySmall?.color,
               fontSize: 11,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
             ),
@@ -501,14 +408,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _showWaveSelector(AudioService audio) {
+    final theme = Theme.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: AppColors.surfaceLight,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: WaveSelector(
           selectedWave: _selectedWave,

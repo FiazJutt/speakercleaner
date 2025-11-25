@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../core/app_colors.dart';
+
+import '../../../core/theme/app_colors.dart';
 import '../../../services/audio_service.dart';
 
 class WaveSelector extends StatelessWidget {
@@ -32,12 +33,13 @@ class WaveSelector extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withOpacity(0.1),
+          color: isSelected ? AppColors.primaryLight : Colors.white,
           borderRadius: BorderRadius.circular(12),
+          border: isSelected ? null : Border.all(color: Colors.black12),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: Colors.white.withOpacity(0.5),
+                    color: AppColors.primaryLight.withOpacity(0.4),
                     blurRadius: 10,
                     spreadRadius: 2,
                   ),
@@ -49,14 +51,14 @@ class WaveSelector extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: isSelected ? AppColors.gradientBlueEnd : Colors.white70,
+              color: isSelected ? Colors.white : AppColors.textSecondaryLight,
               size: 28,
             ),
             const SizedBox(height: 4),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? AppColors.gradientBlueEnd : Colors.white70,
+                color: isSelected ? Colors.white : AppColors.textSecondaryLight,
                 fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
               ),

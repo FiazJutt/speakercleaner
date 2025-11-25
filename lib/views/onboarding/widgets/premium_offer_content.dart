@@ -1,26 +1,23 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 
 class PremiumOfferContent extends StatelessWidget {
   final String imagePath;
 
-  const PremiumOfferContent({
-    super.key,
-    required this.imagePath,
-  });
+  const PremiumOfferContent({super.key, required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
     // Determine if we're using dark theme or light theme
     final bool isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
-    final Color textColor = isDarkMode 
-        ? AppColors.textPrimary 
+
+    final Color textColor = isDarkMode
+        ? AppColors.textPrimary
         : AppColors.textPrimaryLight;
-        
-    final Color secondaryTextColor = isDarkMode 
-        ? AppColors.textSecondary 
+
+    final Color secondaryTextColor = isDarkMode
+        ? AppColors.textSecondary
         : AppColors.textSecondaryLight;
 
     return Column(
@@ -56,7 +53,7 @@ class PremiumOfferContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Big and bold features
               Text(
                 'Ultimate Use, Turbo Mode & Different Sound Waves',
@@ -68,7 +65,7 @@ class PremiumOfferContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              
+
               // Try for free text
               Text(
                 'Try 3 days for free',
@@ -80,7 +77,7 @@ class PremiumOfferContent extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              
+
               // Price text
               Text(
                 'Rs 900 per week',
