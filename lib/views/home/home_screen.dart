@@ -1,15 +1,17 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/app_colors.dart';
+import '../../core/theme/app_colors.dart';
 import '../../services/audio_service.dart';
+import '../settings/settings_screen.dart';
 import 'widgets/layered_container.dart';
 import 'widgets/wave_selector.dart';
 
-// Audio service provider
-final audioServiceProvider = Provider<AudioService>((ref) {
+// Audio service provider - properly initialized
+final audioServiceProvider = FutureProvider<AudioService>((ref) async {
   final service = AudioService();
-  service.initialize();
+  await service.initialize();
   return service;
 });
 
@@ -22,188 +24,383 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isPlaying = false;
-  bool _turboMode = false;
-
-  String _selectedOutput = "Bottom Speaker"; // Default route
-  WaveType _selectedWave = WaveType.sine;
   bool _isCleanerMode = false;
   String _activeAction = '';
+  WaveType _selectedWave = WaveType.sine;
 
-  final List<String> _availableOutputs = [
-    "Bottom Speaker",
-    "Top Earpiece",
-    "Bluetooth / Headset (Auto)",
-  ];
+  // Dynamic device list from native
+  List<AudioDevice> _availableDevices = [];
+  AudioDevice? _selectedDevice;
+
+  // Track if initial device load has been done
+  bool _initialLoadDone = false;
 
   @override
   Widget build(BuildContext context) {
-    final audioService = ref.read(audioServiceProvider);
+    final audioServiceAsync = ref.watch(audioServiceProvider);
 
     return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
       body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [AppColors.gradientBlueStart, AppColors.gradientBlueEnd],
-          ),
-        ),
+        decoration: const BoxDecoration(color: AppColors.backgroundLight),
         child: SafeArea(
-          child: Column(
-            children: [
-              // Output Selector (Speaker / Earpiece)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(40, 20, 40, 0),
-                child: _buildOutputSelector(audioService),
+          child: audioServiceAsync.when(
+            loading: () => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppColors.primaryLight),
+                  SizedBox(height: 16),
+                  Text(
+                    'Initializing audio...',
+                    style: TextStyle(color: AppColors.textSecondaryLight),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 40),
-
-              // Power Control
-              LayeredContainer(
-                isActive: _isPlaying,
-                onPowerPressed: () {
-                  setState(() {
-                    _isPlaying = !_isPlaying;
-                  });
-
-                  if (_isPlaying) {
-                    if (_isCleanerMode) {
-                      audioService.playCleaner();
-                    } else {
-                      audioService.play();
-                    }
-                  } else {
-                    audioService.stop();
-                  }
-                },
+            ),
+            error: (e, stack) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error, color: Colors.red, size: 48),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error: $e',
+                    style: const TextStyle(color: AppColors.textPrimaryLight),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => ref.refresh(audioServiceProvider),
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 20),
-
-              // Turbo Toggle
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 80),
-                child: _buildTurboToggle(),
-              ),
-
-              const Spacer(),
-
-              // Bottom Navigation Actions
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 20,
-                ),
-                child: _buildActionButtons(audioService),
-              ),
-              const SizedBox(height: 60),
-            ],
+            ),
+            data: (audioService) {
+              // ✅ Load devices when service is first available
+              _syncDevicesFromService(audioService);
+              return _buildContent(audioService);
+            },
           ),
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------
-  // OUTPUT SELECTOR (Speaker / Earpiece dropdown)
-  // ---------------------------------------------------------
-  Widget _buildOutputSelector(AudioService audio) {
+  /// Sync local state with AudioService's already-loaded devices
+  void _syncDevicesFromService(AudioService audioService) {
+    if (!_initialLoadDone) {
+      _initialLoadDone = true;
+
+      // Use addPostFrameCallback to avoid setState during build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _availableDevices = audioService.availableDevices;
+            _selectedDevice = audioService.selectedDevice;
+          });
+        }
+      });
+    }
+  }
+
+  Widget _buildContent(AudioService audioService) {
+    return Column(
+      children: [
+        // Dynamic Output Selector
+        Padding(
+          padding: const EdgeInsets.fromLTRB(40, 20, 40, 0),
+          child: Row(
+            children: [
+              Expanded(child: _buildOutputSelector(audioService)),
+              const SizedBox(width: 8),
+
+              // Refresh button
+              _buildRefreshButton(audioService),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 40),
+
+        // Power Control
+        LayeredContainer(
+          isActive: _isPlaying,
+          onPowerPressed: () => _togglePlayback(audioService),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Debug info
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.black12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '🔊 Current: ${_selectedDevice?.name ?? "None"}',
+                  style: const TextStyle(
+                    color: AppColors.textSecondaryLight,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '📱 Devices: ${_availableDevices.length} found',
+                  style: const TextStyle(
+                    color: AppColors.textSecondaryLight,
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  '▶️ Playing: $_isPlaying',
+                  style: const TextStyle(
+                    color: AppColors.textSecondaryLight,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const Spacer(),
+
+        // Bottom Navigation Actions
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+          child: _buildActionButtons(audioService),
+        ),
+        const SizedBox(height: 60),
+      ],
+    );
+  }
+
+  void _togglePlayback(AudioService audioService) async {
+    setState(() => _isPlaying = !_isPlaying);
+
+    if (_isPlaying) {
+      if (_isCleanerMode) {
+        await audioService.playCleaner();
+      } else {
+        await audioService.play();
+      }
+    } else {
+      await audioService.stop();
+    }
+  }
+
+  // Dynamic Output Selector with real devices
+  Widget _buildOutputSelector(AudioService audioService) {
+    // Fallback if no devices loaded yet
+    if (_availableDevices.isEmpty) {
+      return GestureDetector(
+        onTap: () => _refreshDevices(audioService),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.black12),
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.textSecondaryLight,
+                ),
+              ),
+              SizedBox(width: 8),
+              Text(
+                "Tap to load devices...",
+                style: TextStyle(
+                  color: AppColors.textSecondaryLight,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.15),
+        color: AppColors.surfaceLight,
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.black12),
       ),
-      child: DropdownButton<String>(
-        value: _selectedOutput,
+      child: DropdownButton<AudioDevice>(
+        value: _selectedDevice,
         isExpanded: true,
         underline: const SizedBox(),
-        dropdownColor: AppColors.gradientBlueEnd,
-        icon: const Icon(Icons.arrow_drop_down, color: Colors.white, size: 18),
+        dropdownColor: AppColors.surfaceLight,
+        icon: const Icon(
+          Icons.arrow_drop_down,
+          color: AppColors.textPrimaryLight,
+          size: 18,
+        ),
         style: const TextStyle(
-          color: Colors.white,
+          color: AppColors.textPrimaryLight,
           fontSize: 13,
           fontWeight: FontWeight.w500,
         ),
-        items: _availableOutputs.map((String label) {
-          return DropdownMenuItem<String>(
-            value: label,
+        items: _availableDevices.map((AudioDevice device) {
+          return DropdownMenuItem<AudioDevice>(
+            value: device,
             child: Row(
               children: [
-                const Icon(Icons.speaker, color: Colors.white, size: 14),
+                Icon(
+                  _getDeviceIcon(device.type),
+                  color: AppColors.textPrimaryLight,
+                  size: 14,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
-                  child: Text(label, style: const TextStyle(fontSize: 12)),
+                  child: Text(
+                    device.name,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimaryLight,
+                    ),
+                  ),
                 ),
               ],
             ),
           );
         }).toList(),
-        onChanged: (value) {
-          if (value != null) {
-            setState(() => _selectedOutput = value);
 
-            audio.selectOutput(value);
+        onChanged: (AudioDevice? device) async {
+          if (device != null && device != _selectedDevice) {
+            if (kDebugMode) {
+              print("📱 User selected: ${device.name}");
+            }
+
+            setState(() => _selectedDevice = device);
+
+            // Show switching indicator
+            if (mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text("Switching to ${device.name}..."),
+                    ],
+                  ),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: AppColors.primaryLight,
+                ),
+              );
+            }
+
+            // Switch device with proper handling
+            final success = await audioService.switchDevice(device);
+
+            if (mounted) {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      Icon(
+                        success ? Icons.check_circle : Icons.error,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        success
+                            ? "Now using ${device.name}"
+                            : "Failed to switch to ${device.name}",
+                      ),
+                    ],
+                  ),
+                  backgroundColor: success ? Colors.green : Colors.red,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
           }
         },
       ),
     );
   }
 
-  // ---------------------------------------------------------
-  // TURBO TOGGLE
-  // ---------------------------------------------------------
-  Widget _buildTurboToggle() {
+  Widget _buildRefreshButton(AudioService audioService) {
     return GestureDetector(
-      onTap: () {
-        setState(() => _turboMode = !_turboMode);
-      },
+      onTap: () => _refreshDevices(audioService),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
         decoration: BoxDecoration(
-          color: _turboMode
-              ? AppColors.turboOrange.withOpacity(0.3)
-              : Colors.white.withOpacity(0.15),
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: _turboMode
-                ? AppColors.turboOrange
-                : Colors.white.withOpacity(0.3),
-            width: 1.5,
-          ),
+          border: Border.all(color: Colors.black12, width: 1),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.bolt,
-              color: _turboMode ? AppColors.turboOrange : Colors.white,
-              size: 16,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              "Turbo",
-              style: TextStyle(
-                color: _turboMode ? AppColors.turboOrange : Colors.white,
-                fontSize: 12,
-                fontWeight: _turboMode ? FontWeight.bold : FontWeight.w500,
-              ),
-            ),
-          ],
+        child: const Icon(
+          Icons.refresh,
+          color: AppColors.textPrimaryLight,
+          size: 20,
         ),
       ),
     );
   }
 
-  // ---------------------------------------------------------
-  // BOTTOM ACTION BUTTONS
-  // ---------------------------------------------------------
+  Future<void> _refreshDevices(AudioService audioService) async {
+    final devices = await audioService.refreshAvailableDevices();
+    if (mounted) {
+      setState(() {
+        _availableDevices = devices;
+        _selectedDevice = audioService.selectedDevice;
+      });
+    }
+  }
+
+  IconData _getDeviceIcon(int type) {
+    switch (type) {
+      case AudioDeviceType.TYPE_BUILTIN_SPEAKER:
+        return Icons.speaker;
+      case AudioDeviceType.TYPE_BUILTIN_EARPIECE:
+        return Icons.phone_in_talk;
+      case AudioDeviceType.TYPE_WIRED_HEADSET:
+      case AudioDeviceType.TYPE_WIRED_HEADPHONES:
+        return Icons.headphones;
+      case AudioDeviceType.TYPE_BLUETOOTH_A2DP:
+      case AudioDeviceType.TYPE_BLUETOOTH_SCO:
+        return Icons.bluetooth_audio;
+      case AudioDeviceType.TYPE_USB_DEVICE:
+      case AudioDeviceType.TYPE_USB_HEADSET:
+        return Icons.usb;
+      default:
+        return Icons.speaker;
+    }
+  }
+
   Widget _buildActionButtons(AudioService audioService) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        // Cleaner Mode
         _buildIconButton(
           icon: Icons.cleaning_services,
           label: 'Cleaner',
@@ -213,10 +410,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _activeAction = 'cleaner';
               _isCleanerMode = true;
             });
+            if (_isPlaying) {
+              audioService.stop();
+              audioService.playCleaner();
+            }
           },
         ),
-
-        // Waves
         _buildIconButton(
           icon: Icons.graphic_eq,
           label: 'Waves',
@@ -226,19 +425,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               _activeAction = 'waves';
               _isCleanerMode = false;
             });
+            if (_isPlaying) {
+              audioService.stop();
+              audioService.play();
+            }
             _showWaveSelector(audioService);
           },
         ),
-
-        // Settings (future use)
         _buildIconButton(
           icon: Icons.settings,
           label: 'Settings',
-          isActive: _activeAction == 'settings',
-          onTap: () {
-            setState(() => _activeAction = 'settings');
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Settings coming soon")),
+          isActive: false,
+          onTap: () async {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
             );
           },
         ),
@@ -259,21 +460,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isActive ? Colors.white : Colors.white.withOpacity(0.2),
+              color: isActive ? AppColors.primaryLight : AppColors.surfaceLight,
               shape: BoxShape.circle,
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.6),
+                        color: AppColors.primaryLight.withOpacity(0.4),
                         blurRadius: 12,
                         spreadRadius: 2,
                       ),
                     ]
-                  : null,
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Icon(
               icon,
-              color: isActive ? AppColors.gradientBlueEnd : Colors.white,
+              color: isActive ? Colors.white : AppColors.textSecondaryLight,
               size: 26,
             ),
           ),
@@ -281,7 +488,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           Text(
             label,
             style: TextStyle(
-              color: Colors.white,
+              color: isActive
+                  ? AppColors.primaryLight
+                  : AppColors.textSecondaryLight,
               fontSize: 11,
               fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
             ),
@@ -291,9 +500,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  // ---------------------------------------------------------
-  // WAVE SELECTOR MODAL
-  // ---------------------------------------------------------
   void _showWaveSelector(AudioService audio) {
     showModalBottomSheet(
       context: context,
@@ -301,7 +507,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       builder: (context) => Container(
         padding: const EdgeInsets.all(20),
         decoration: const BoxDecoration(
-          color: AppColors.gradientBlueEnd,
+          color: AppColors.surfaceLight,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
         child: WaveSelector(
@@ -309,6 +515,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           onWaveSelected: (wave) {
             setState(() => _selectedWave = wave);
             audio.setWaveType(wave);
+            if (_isPlaying && !_isCleanerMode) {
+              audio.stop();
+              audio.play();
+            }
             Navigator.pop(context);
           },
         ),
