@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/theme.dart';
+import 'views/onboarding/onboarding_screen.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ProviderScope(child: MyApp()));
 }
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(home: const MyHomePage(title: 'Flutter Demo Home Page'));
+    return MaterialApp(
+      title: 'Speaker Cleaner',
+      theme: AppTheme.lightTheme,
+      home: const OnboardingScreen(),
+      debugShowCheckedModeBanner: false,
+    );
   }
 }
