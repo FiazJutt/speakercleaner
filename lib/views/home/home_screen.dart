@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../services/audio_service.dart';
-import '../settings/settings_screen.dart';
+import 'widgets/action_buttons_bar.dart';
 import 'widgets/layered_container.dart';
-import 'widgets/wave_selector.dart';
+import 'widgets/output_selector.dart';
 
 // Audio service provider - properly initialized
 final audioServiceProvider = FutureProvider<AudioService>((ref) async {
@@ -112,7 +112,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Dynamic Output Selector
         Padding(
           padding: const EdgeInsets.fromLTRB(90, 30, 90, 0),
-          child: _buildOutputSelector(audioService),
+          child: OutputSelector(
+            availableDevices: _availableDevices,
+            selectedDevice: _selectedDevice,
+            audioService: audioService,
+            onDeviceChanged: (device) =>
+                _handleDeviceChange(device, audioService),
+            onRefreshDevices: () => _refreshDevices(audioService),
+          ),
         ),
 
         const SizedBox(height: 80),
@@ -130,7 +137,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Bottom Navigation Actions
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-          child: _buildActionButtons(audioService),
+          child: ActionButtonsBar(
+            activeAction: _activeAction,
+            isPlaying: _isPlaying,
+            selectedWave: _selectedWave,
+            audioService: audioService,
+            onActionChanged: (action) {
+              setState(() {
+                _activeAction = action;
+                _isCleanerMode = action == 'cleaner';
+              });
+            },
+            onWaveSelected: (wave) {
+              setState(() => _selectedWave = wave);
+            },
+          ),
         ),
         const SizedBox(height: 60),
       ],
@@ -151,124 +172,72 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  // Dynamic Output Selector with real devices
-  Widget _buildOutputSelector(AudioService audioService) {
-    final theme = Theme.of(context);
-    // Fallback if no devices loaded yet
-    if (_availableDevices.isEmpty) {
-      return GestureDetector(
-        onTap: () => _refreshDevices(audioService),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.dividerColor),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: theme.textTheme.bodyMedium?.color,
+  Future<void> _handleDeviceChange(
+    AudioDevice? device,
+    AudioService audioService,
+  ) async {
+    if (device != null && device != _selectedDevice) {
+      if (kDebugMode) {
+        print("User selected: ${device.name}");
+      }
+
+      setState(() => _selectedDevice = device);
+
+      final theme = Theme.of(context);
+
+      // Show switching indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text("Tap to load devices...", style: theme.textTheme.bodySmall),
-            ],
+                const SizedBox(width: 12),
+                Text("Switching to ${device.name}..."),
+              ],
+            ),
+            duration: const Duration(seconds: 2),
+            backgroundColor: theme.colorScheme.primary,
           ),
-        ),
-      );
+        );
+      }
+
+      // Switch device with proper handling
+      final success = await audioService.switchDevice(device);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  success ? Icons.check_circle : Icons.error,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  success
+                      ? "Now using ${device.name}"
+                      : "Failed to switch to ${device.name}",
+                ),
+              ],
+            ),
+            backgroundColor: success ? Colors.green : Colors.red,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
     }
-
-    return Container(
-      child: DropdownButton<AudioDevice>(
-        isDense: true,
-        alignment: Alignment.center,
-        iconSize: 30,
-        icon: Icon(Icons.arrow_drop_down, color: theme.iconTheme.color),
-        value: _selectedDevice,
-        isExpanded: true,
-        underline: const SizedBox(),
-        dropdownColor: theme.colorScheme.surface,
-        style: theme.textTheme.bodyMedium?.copyWith(
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-        ),
-        items: _availableDevices.map((AudioDevice device) {
-          return DropdownMenuItem<AudioDevice>(
-            value: device,
-            child: Text(device.name),
-          );
-        }).toList(),
-
-        onChanged: (AudioDevice? device) async {
-          if (device != null && device != _selectedDevice) {
-            if (kDebugMode) {
-              print("User selected: ${device.name}");
-            }
-
-            setState(() => _selectedDevice = device);
-
-            // Show switching indicator
-            if (mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text("Switching to ${device.name}..."),
-                    ],
-                  ),
-                  duration: const Duration(seconds: 2),
-                  backgroundColor: theme.colorScheme.primary,
-                ),
-              );
-            }
-
-            // Switch device with proper handling
-            final success = await audioService.switchDevice(device);
-
-            if (mounted) {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Row(
-                    children: [
-                      Icon(
-                        success ? Icons.check_circle : Icons.error,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        success
-                            ? "Now using ${device.name}"
-                            : "Failed to switch to ${device.name}",
-                      ),
-                    ],
-                  ),
-                  backgroundColor: success ? Colors.green : Colors.red,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            }
-          }
-        },
-      ),
-    );
   }
 
   Future<void> _refreshDevices(AudioService audioService) async {
@@ -279,158 +248,5 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         _selectedDevice = audioService.selectedDevice;
       });
     }
-  }
-
-  IconData _getDeviceIcon(int type) {
-    switch (type) {
-      case AudioDeviceType.TYPE_BUILTIN_SPEAKER:
-        return Icons.speaker;
-      case AudioDeviceType.TYPE_BUILTIN_EARPIECE:
-        return Icons.phone_in_talk;
-      case AudioDeviceType.TYPE_WIRED_HEADSET:
-      case AudioDeviceType.TYPE_WIRED_HEADPHONES:
-        return Icons.headphones;
-      case AudioDeviceType.TYPE_BLUETOOTH_A2DP:
-      case AudioDeviceType.TYPE_BLUETOOTH_SCO:
-        return Icons.bluetooth_audio;
-      case AudioDeviceType.TYPE_USB_DEVICE:
-      case AudioDeviceType.TYPE_USB_HEADSET:
-        return Icons.usb;
-      default:
-        return Icons.speaker;
-    }
-  }
-
-  Widget _buildActionButtons(AudioService audioService) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        _buildIconButton(
-          icon: Icons.cleaning_services,
-          label: 'Cleaner',
-          isActive: _activeAction == 'cleaner',
-          onTap: () {
-            setState(() {
-              _activeAction = 'cleaner';
-              _isCleanerMode = true;
-            });
-            if (_isPlaying) {
-              audioService.stop();
-              audioService.playCleaner();
-            }
-          },
-        ),
-        _buildIconButton(
-          icon: Icons.graphic_eq,
-          label: 'Waves',
-          isActive: _activeAction == 'waves',
-          onTap: () {
-            setState(() {
-              _activeAction = 'waves';
-              _isCleanerMode = false;
-            });
-            if (_isPlaying) {
-              audioService.stop();
-              audioService.play();
-            }
-            _showWaveSelector(audioService);
-          },
-        ),
-        _buildIconButton(
-          icon: Icons.settings,
-          label: 'Settings',
-          isActive: false,
-          onTap: () async {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const SettingsScreen()),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildIconButton({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isActive
-                  ? theme.colorScheme.primary
-                  : theme.colorScheme.surface,
-              shape: BoxShape.circle,
-              boxShadow: isActive
-                  ? [
-                      BoxShadow(
-                        color: theme.colorScheme.primary.withOpacity(0.4),
-                        blurRadius: 12,
-                        spreadRadius: 2,
-                      ),
-                    ]
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-            ),
-            child: Icon(
-              icon,
-              color: isActive ? Colors.white : theme.iconTheme.color,
-              size: 26,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: isActive
-                  ? theme.colorScheme.primary
-                  : theme.textTheme.bodySmall?.color,
-              fontSize: 11,
-              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showWaveSelector(AudioService audio) {
-    final theme = Theme.of(context);
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: WaveSelector(
-          selectedWave: _selectedWave,
-          onWaveSelected: (wave) {
-            setState(() => _selectedWave = wave);
-            audio.setWaveType(wave);
-            if (_isPlaying && !_isCleanerMode) {
-              audio.stop();
-              audio.play();
-            }
-            Navigator.pop(context);
-          },
-        ),
-      ),
-    );
   }
 }
