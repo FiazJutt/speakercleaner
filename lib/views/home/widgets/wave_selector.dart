@@ -18,7 +18,8 @@ class WaveSelector extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        _buildWaveOption(WaveType.sine, 'Sine', Icons.waves),
+        _buildWaveOption(WaveType.sine1, 'Sine1', Icons.waves),
+        _buildWaveOption(WaveType.sine2, 'Sin2', Icons.waves),
         _buildWaveOption(WaveType.square, 'Square', Icons.graphic_eq),
         _buildWaveOption(WaveType.sawtooth, 'Sawtooth', Icons.show_chart),
       ],

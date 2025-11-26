@@ -25,7 +25,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isPlaying = false;
   bool _isCleanerMode = false;
   String _activeAction = '';
-  WaveType _selectedWave = WaveType.sine;
+  WaveType _selectedWave = WaveType.sine1;
 
   // Dynamic device list from native
   List<AudioDevice> _availableDevices = [];
