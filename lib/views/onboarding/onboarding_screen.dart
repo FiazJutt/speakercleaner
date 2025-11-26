@@ -75,12 +75,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: SizedBox(
                 width: 200, // Fixed width for the button
                 child: ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     if (onboardingState.isLastPage) {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const HomeScreen()),
-                      );
+                      await viewModel.completeOnboarding();
+                      if (context.mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HomeScreen()),
+                        );
+                      }
                     } else {
                       _pageController.nextPage(
                         duration: const Duration(milliseconds: 300),

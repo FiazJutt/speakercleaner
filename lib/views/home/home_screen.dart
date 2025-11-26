@@ -1,8 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speakercleaner/services/notification_service.dart';
+import 'package:speakercleaner/viewmodels/settings_provider.dart';
 
 import '../../services/audio_service.dart';
+import '../../services/onboarding_service.dart';
+import '../../viewmodels/subscription_provider.dart';
+import '../onboarding/onboarding_screen.dart';
+import '../paywall/premium_paywall_screen.dart';
 import 'widgets/action_buttons_bar.dart';
 import 'widgets/layered_container.dart';
 import 'widgets/output_selector.dart';
@@ -23,8 +29,6 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   bool _isPlaying = false;
-  bool _isCleanerMode = false;
-  String _activeAction = '';
   WaveType _selectedWave = WaveType.sine1;
 
   // Dynamic device list from native
@@ -33,6 +37,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   // Track if initial device load has been done
   bool _initialLoadDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAndShowOnboarding();
+    _scheduleInitialNotification();
+  }
+
+  Future<void> _checkAndShowOnboarding() async {
+    // Wait for the first frame to be rendered
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final isCompleted = await OnboardingService().isOnboardingCompleted();
+      if (!isCompleted && mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      }
+    });
+  }
+
+  Future<void> _scheduleInitialNotification() async {
+    // Wait for settings to load
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    final settings = ref.read(settingsProvider);
+
+    if (!settings.isNotificationScheduled) {
+      // Schedule daily notification (will repeat daily at approximately the same time)
+      await NotificationService().scheduleDailyNotification(
+        title: "Speaker Cleaner 🔊",
+        body: "Keep your speakers clean for the best sound quality!",
+      );
+
+      await ref.read(settingsProvider.notifier).setNotificationScheduled(true);
+      await ref.read(settingsProvider.notifier).setNotificationEnabled(true);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +147,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Widget _buildContent(AudioService audioService) {
-    final theme = Theme.of(context);
     return Column(
       children: [
         // Dynamic Output Selector
@@ -138,16 +178,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: ActionButtonsBar(
-            activeAction: _activeAction,
             isPlaying: _isPlaying,
             selectedWave: _selectedWave,
             audioService: audioService,
-            onActionChanged: (action) {
-              setState(() {
-                _activeAction = action;
-                _isCleanerMode = action == 'cleaner';
-              });
-            },
             onWaveSelected: (wave) {
               setState(() => _selectedWave = wave);
             },
@@ -159,14 +192,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _togglePlayback(AudioService audioService) async {
+    // Check subscription status before playing
+    if (!_isPlaying) {
+      final subscriptionService = ref.read(subscriptionProvider);
+
+      if (!subscriptionService.canUseApp) {
+        // Show paywall if limit reached
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const PremiumPaywallScreen(),
+            fullscreenDialog: true,
+          ),
+        );
+        return;
+      }
+
+      // Increment usage count
+      await subscriptionService.incrementUsageCount();
+    }
+
     setState(() => _isPlaying = !_isPlaying);
 
     if (_isPlaying) {
-      if (_isCleanerMode) {
-        await audioService.playCleaner();
-      } else {
-        await audioService.play();
-      }
+      await audioService.play();
     } else {
       await audioService.stop();
     }

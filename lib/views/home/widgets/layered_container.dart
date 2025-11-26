@@ -44,7 +44,7 @@ class LayeredContainer extends StatelessWidget {
                       color: layerColor.withOpacity(0.7),
                       child: _buildLayer(
                         context: context,
-                        size: 140,
+                        size: 100,
                         color: layerColor.withOpacity(1),
                         child: _buildPowerButton(context),
                       ),
@@ -75,8 +75,8 @@ class LayeredContainer extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(
           color: isDark
-              ? Colors.white!.withOpacity(0.2)
-              : Colors.black!.withOpacity(0.2),
+              ? Colors.white.withOpacity(0.05)
+              : Colors.black.withOpacity(0.05),
           width: 2,
         ),
         boxShadow: [
@@ -104,6 +104,7 @@ class LayeredContainer extends StatelessWidget {
         glowColor: AppColors.powerButtonGreen,
         duration: const Duration(milliseconds: 2000),
         repeat: true,
+        glowRadiusFactor: 0.48,
         child: Container(
           width: 70,
           height: 70,
