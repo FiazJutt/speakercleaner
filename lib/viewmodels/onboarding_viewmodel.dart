@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../services/onboarding_service.dart';
+
 class OnboardingState {
   final int currentPage;
   final bool isLastPage;
@@ -27,8 +29,8 @@ class OnboardingViewModel extends Notifier<OnboardingState> {
     );
   }
 
-  void completeOnboarding() {
-    // Logic to save onboarding completion state
+  Future<void> completeOnboarding() async {
+    await OnboardingService().setOnboardingCompleted();
   }
 }
 
